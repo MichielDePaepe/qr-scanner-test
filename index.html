@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#101311" />
+    <meta name="description" content="Vergelijk QR-scanners live op je iPhone." />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+    <title>QR Lab · Scanner benchmark</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <button class="icon-button" id="menuButton" aria-label="Open scanners" aria-expanded="false"><span class="hamburger"></span></button>
+        <div class="brand"><span class="brand-mark">⌗</span><span id="activeScanner">html5-qrcode</span></div>
+        <button class="icon-button" id="restartButton" aria-label="Camera opnieuw starten">↻</button>
+      </header>
+
+      <aside class="drawer" id="drawer" aria-hidden="true">
+        <div class="drawer-head"><div><p class="eyebrow">QR LAB</p><h2>Scanners</h2></div><button class="icon-button" id="closeMenu" aria-label="Menu sluiten">×</button></div>
+        <nav id="scannerNav" aria-label="Scannerbibliotheken"></nav>
+        <div class="drawer-foot">Kies een scanner om direct te vergelijken.</div>
+      </aside>
+      <button class="scrim" id="scrim" aria-label="Menu sluiten" hidden></button>
+
+      <main>
+        <section class="scanner-section" aria-label="QR-code scanner">
+          <div class="scanner-meta"><span class="live-dot" id="liveDot"></span><span id="cameraStatus">Camera wordt gestart</span><span class="meta-spacer"></span><span class="fps-chip" id="fpsChip">10 FPS</span></div>
+          <div class="camera-stage" id="cameraStage">
+            <video id="video" playsinline muted autoplay aria-label="Live camerabeeld"></video>
+            <div id="reader" aria-hidden="true"></div>
+            <div class="video-placeholder" id="videoPlaceholder"><div class="placeholder-icon">▣</div><span>Cameraweergave</span><small>Geef Safari toegang tot de camera</small></div>
+            <div class="scan-frame" aria-hidden="true"><i></i><i></i><i></i><i></i><div class="scan-line"></div></div>
+            <div class="scan-success" id="scanSuccess" aria-hidden="true">✓ <span>QR-code herkend</span></div>
+            <div class="camera-actions"><button class="camera-control" id="torchButton" disabled><span>ϟ</span><small>Zaklamp</small></button><button class="camera-control" id="zoomButton" disabled><span>＋</span><small>Zoom</small></button></div>
+          </div>
+          <div class="last-scan" id="lastScan">
+            <div class="last-icon">⌗</div><div class="last-content"><div class="last-heading"><span>LAATSTE SCAN</span><span id="lastTime">—</span></div><div class="last-value" id="lastValue">Richt de camera op een QR-code</div><div class="last-source" id="lastSource">Wachten op herkenning</div></div>
+          </div>
+        </section>
+
+        <section class="benchmark-card">
+          <div class="section-heading"><div><p class="eyebrow">ACTIEVE SCANNER</p><h2>Benchmark</h2></div><button class="text-button" id="exportButton">↓ CSV export</button></div>
+          <div class="metric-grid">
+            <div class="metric"><span class="metric-value" id="scanCount">0</span><span class="metric-label">Scans</span></div>
+            <div class="metric"><span class="metric-value" id="uniqueCount">0</span><span class="metric-label">Unieke codes</span></div>
+            <div class="metric"><span class="metric-value" id="intervalValue">—</span><span class="metric-label">Tussen scans</span></div>
+            <div class="metric"><span class="metric-value" id="decodeValue">—</span><span class="metric-label">Decodeertijd</span></div>
+          </div>
+          <p class="measurement-note" id="measurementNote">Scaninterval is gemeten. Decodeertijd is alleen beschikbaar wanneer de adapter dit betrouwbaar meet.</p>
+          <div class="error-row"><span>Scannerfouten</span><strong id="errorCount">0</strong></div>
+        </section>
+
+        <details class="settings-card" id="settingsPanel">
+          <summary><span class="settings-icon">⚙</span><span><b>Camera & scaninstellingen</b><small>Gelijke uitgangspunten voor alle scanners</small></span><span class="chevron">⌄</span></summary>
+          <div class="settings-body">
+            <label class="setting-row"><span><b>Scansnelheid</b><small>Controlefrequentie van cameraframes</small></span><span class="select-wrap"><select id="scanRate"><option value="5">5 FPS</option><option value="10" selected>10 FPS</option><option value="15">15 FPS</option><option value="20">20 FPS</option></select></span></label>
+            <label class="setting-row"><span><b>Cooldown</b><small>Negeer dezelfde code tijdelijk</small></span><span class="select-wrap"><select id="cooldown"><option value="0.5">0,5 sec</option><option value="1">1 sec</option><option value="2" selected>2 sec</option><option value="3">3 sec</option><option value="5">5 sec</option></select></span></label>
+            <div class="setting-row"><span><b>Cameraresolutie</b><small>Voorkeur: minimaal 1280 × 720</small></span><span class="setting-value" id="resolutionValue">Detecteren…</span></div>
+            <div class="setting-row"><span><b>Autofocus</b><small>Automatisch indien beschikbaar</small></span><span class="setting-value" id="focusValue">Detecteren…</span></div>
+            <div class="setting-row"><span><b>Zaklamp & zoom</b><small>Bediening op de cameravoorvertoning</small></span><span class="setting-value" id="capabilityValue">Detecteren…</span></div>
+            <p class="settings-footnote">Safari kiest de beschikbare achtercamera. Resolutie en camera-eigenschappen kunnen per iPhone en bibliotheek verschillen.</p>
+          </div>
+        </details>
+
+        <section class="history-card">
+          <div class="section-heading"><div><p class="eyebrow">DEZE SESSIE</p><h2>Scanhistoriek <span class="count-pill" id="historyCount">0</span></h2></div><button class="text-button muted" id="clearButton">Wissen</button></div>
+          <div class="history-list" id="historyList"><div class="empty-state"><span>⌗</span><p>Nog geen codes gescand</p><small>Je resultaten verschijnen hier, nieuwste bovenaan.</small></div></div>
+        </section>
+        <footer>Alle gegevens blijven op dit toestel · Geen verbinding met RAM</footer>
+      </main>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "qr-scanner-benchmark",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "start:https": "HTTPS=1 node server.mjs"
+  }
+}

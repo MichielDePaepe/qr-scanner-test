@@ -1,0 +1,11 @@
+{
+  "name": "QR Lab · Scanner benchmark",
+  "short_name": "QR Lab",
+  "description": "Vergelijk QR-scannerbibliotheken op je iPhone.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#101311",
+  "theme_color": "#101311",
+  "orientation": "portrait",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
