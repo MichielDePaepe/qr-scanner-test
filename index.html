@@ -65,6 +65,15 @@
           </div>
         </details>
 
+        <details class="settings-card diagnostics-card" id="diagnosticsPanel">
+          <summary><span class="settings-icon diagnostic-icon">⌁</span><span><b>Camera-diagnostiek</b><small>Technische status zonder QR-inhoud</small></span><span class="chevron">⌄</span></summary>
+          <div class="diagnostics-body">
+            <p>De gekopieerde diagnose bevat browser-, scanner- en camerastatus plus recente foutmeldingen. Gescande codes worden niet opgenomen.</p>
+            <button class="copy-diagnostics" id="copyDiagnostics" type="button">⧉ Kopieer diagnose</button>
+            <pre id="diagnosticsOutput">Diagnose wordt bijgewerkt…</pre>
+          </div>
+        </details>
+
         <section class="history-card">
           <div class="section-heading"><div><p class="eyebrow">DEZE SESSIE</p><h2>Scanhistoriek <span class="count-pill" id="historyCount">0</span></h2></div><button class="text-button muted" id="clearButton">Wissen</button></div>
           <div class="history-list" id="historyList"><div class="empty-state"><span>⌗</span><p>Nog geen codes gescand</p><small>Je resultaten verschijnen hier, nieuwste bovenaan.</small></div></div>

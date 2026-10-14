@@ -1,4 +1,4 @@
-const CACHE = 'qr-lab-shell-v1';
+const CACHE = 'qr-lab-shell-v2';
 const SHELL = ['./', './styles.css', './app.js', './adapters.js', './manifest.webmanifest', './icon.svg'];
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL.map((path) => new URL(path, self.registration.scope).href))).then(() => self.skipWaiting()));

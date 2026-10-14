@@ -1,5 +1,6 @@
 import { createAdapter, scannerCatalog } from './adapters.js';
 
+const BUILD_VERSION = '2026.10.14.2';
 const $ = (selector) => document.querySelector(selector);
 const video = $('#video');
 const reader = $('#reader');
@@ -13,6 +14,45 @@ let switchToken = 0;
 let toastTimer = 0;
 let successTimer = 0;
 let selectedZoom = 1;
+let torchEnabled = false;
+const diagnosticEvents = [];
+
+function logDiagnostic(event, details = {}) {
+  diagnosticEvents.unshift({ at: new Date().toISOString(), event, ...details });
+  diagnosticEvents.length = Math.min(diagnosticEvents.length, 25);
+  updateDiagnostics();
+}
+
+function updateDiagnostics() {
+  const preview = activeId === 'html5' ? (reader.querySelector('video') || video) : video;
+  let track = null;
+  let capabilities = {};
+  try { track = activeAdapter?.getTrack?.() || preview.srcObject?.getVideoTracks?.()[0] || null; } catch { /* Browser may hide track capabilities. */ }
+  try { capabilities = track?.getCapabilities?.() || {}; } catch { /* Capability API is optional. */ }
+  let settings = {};
+  try {
+    const actual = track?.getSettings?.() || {};
+    settings = { width: actual.width ?? null, height: actual.height ?? null, facingMode: actual.facingMode ?? null, frameRate: actual.frameRate ?? null, torch: actual.torch ?? null, zoom: actual.zoom ?? null };
+  } catch { /* Settings API is optional. */ }
+  const stream = preview.srcObject;
+  const snapshot = {
+    app: BUILD_VERSION,
+    capturedAt: new Date().toISOString(),
+    page: { url: location.href, secureContext: window.isSecureContext, visibility: document.visibilityState, serviceWorker: 'serviceWorker' in navigator },
+    browser: { userAgent: navigator.userAgent, platform: navigator.platform, language: navigator.language },
+    scanner: { id: activeId, name: scannerCatalog.find((item) => item.id === activeId)?.name, status: $('#cameraStatus').textContent, errorCount: stats.errors },
+    camera: {
+      getUserMedia: Boolean(navigator.mediaDevices?.getUserMedia), barcodeDetector: 'BarcodeDetector' in window,
+      streamActive: Boolean(stream?.active), trackState: track?.readyState ?? null, trackEnabled: track?.enabled ?? null,
+      videoReadyState: preview.readyState, videoWidth: preview.videoWidth, videoHeight: preview.videoHeight, videoPaused: preview.paused,
+      settings, support: { torch: Boolean(capabilities.torch), zoom: capabilities.zoom ? { min: capabilities.zoom.min, max: capabilities.zoom.max } : false, focusModes: capabilities.focusMode || [] },
+    },
+    recentEvents: diagnosticEvents,
+  };
+  const output = $('#diagnosticsOutput');
+  if (output) output.textContent = JSON.stringify(snapshot, null, 2);
+  return snapshot;
+}
 
 function toast(message) {
   const element = $('#toast');
@@ -99,17 +139,20 @@ function reportError(error, token = switchToken) {
   const message = error?.message || String(error || 'Onbekende scannerfout');
   if (/notfoundexception|checksumexception|formatexception/i.test(message)) return;
   stats.errors += 1;
+  logDiagnostic('scanner-error', { name: error?.name || 'Error', message });
   updateMetrics();
   setCameraStatus('Scannerfout', 'error');
   $('#lastSource').textContent = message;
   toast(message);
 }
 
-function updateCapabilities(adapter) {
+async function updateCapabilities(adapter) {
   $('#videoPlaceholder').hidden = true;
   const track = adapter?.getTrack?.();
-  const settings = track?.getSettings?.() || {};
-  const capabilities = track?.getCapabilities?.() || {};
+  let settings = {};
+  let capabilities = {};
+  try { settings = track?.getSettings?.() || {}; } catch { /* Optional MediaStreamTrack API. */ }
+  try { capabilities = track?.getCapabilities?.() || {}; } catch { /* Optional MediaStreamTrack API. */ }
   const width = settings.width;
   const height = settings.height;
   $('#resolutionValue').textContent = width && height ? `${width} × ${height}` : 'Niet beschikbaar';
@@ -117,13 +160,17 @@ function updateCapabilities(adapter) {
   const focusSupported = capabilities.focusMode?.includes('continuous');
   $('#focusValue').textContent = focusSupported ? 'Continu' : 'Niet ondersteund';
   $('#focusValue').classList.toggle('unsupported', !focusSupported);
-  const hasTorch = Boolean(capabilities.torch);
+  let hasTorch = Boolean(capabilities.torch);
+  if (!hasTorch) {
+    try { hasTorch = Boolean(await adapter?.hasTorch?.()); } catch { hasTorch = false; }
+  }
   const hasZoom = Boolean(capabilities.zoom);
   $('#torchButton').disabled = !hasTorch;
   $('#zoomButton').disabled = !hasZoom;
   $('#capabilityValue').textContent = hasTorch || hasZoom ? `${hasTorch ? 'Zaklamp' : ''}${hasTorch && hasZoom ? ' · ' : ''}${hasZoom ? `Zoom ${capabilities.zoom.min}–${capabilities.zoom.max}×` : ''}` : 'Niet ondersteund';
   $('#capabilityValue').classList.toggle('unsupported', !hasTorch && !hasZoom);
   if (focusSupported) track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
+  logDiagnostic('camera-ready', { width: width ?? null, height: height ?? null, torch: hasTorch, zoom: hasZoom });
 }
 
 async function stopActive() {
@@ -140,6 +187,10 @@ async function stopActive() {
   readerVideo?.pause();
   $('#torchButton').disabled = true;
   $('#zoomButton').disabled = true;
+  torchEnabled = false;
+  $('#torchButton').classList.remove('selected');
+  $('#torchButton small').textContent = 'Zaklamp';
+  updateDiagnostics();
 }
 
 async function selectScanner(id, { restart = false } = {}) {
@@ -160,6 +211,7 @@ async function selectScanner(id, { restart = false } = {}) {
   $('#fpsChip').textContent = `${$('#scanRate').value} FPS`;
   setCameraStatus('Camera wordt gestart', 'off');
   $('#lastSource').textContent = item?.status || 'Scanner wordt geladen';
+  logDiagnostic('scanner-selected', { id });
   await stopActive();
   if (token !== switchToken) return;
   const adapter = await createAdapter(id, {
@@ -174,7 +226,8 @@ async function selectScanner(id, { restart = false } = {}) {
     if (token !== switchToken) { await adapter.destroy(); return; }
     setCameraStatus('Camera actief');
     $('#videoPlaceholder').hidden = true;
-    updateCapabilities(adapter);
+    await updateCapabilities(adapter);
+    updateDiagnostics();
     $('#lastSource').textContent = item?.status || 'Gereed';
   } catch (error) {
     if (token !== switchToken) { await adapter.destroy(); return; }
@@ -186,6 +239,7 @@ async function selectScanner(id, { restart = false } = {}) {
     $('#focusValue').textContent = 'Niet ondersteund';
     $('#capabilityValue').textContent = 'Niet ondersteund';
     reportError(error, token);
+    updateDiagnostics();
   }
 }
 
@@ -238,12 +292,11 @@ $('#scanRate').addEventListener('change', () => {
   if (activeAdapter) selectScanner(activeId, { restart: true });
 });
 $('#torchButton').addEventListener('click', async () => {
-  const track = activeAdapter?.getTrack?.();
-  if (!track) return;
+  if (!activeAdapter) return;
   try {
-    const enabled = !track.getSettings().torch;
-    await track.applyConstraints({ advanced: [{ torch: enabled }] });
-    $('#torchButton').classList.toggle('selected', enabled);
+    torchEnabled = !torchEnabled;
+    await activeAdapter.setTorch(torchEnabled);
+    $('#torchButton').classList.toggle('selected', torchEnabled);
   } catch (error) { toast(`Zaklamp niet beschikbaar: ${error.message}`); }
 });
 $('#zoomButton').addEventListener('click', async () => {
@@ -254,12 +307,27 @@ $('#zoomButton').addEventListener('click', async () => {
   try { await track.applyConstraints({ advanced: [{ zoom: selectedZoom }] }); $('#zoomButton small').textContent = `${selectedZoom.toFixed(1)}×`; }
   catch (error) { toast(`Zoom niet beschikbaar: ${error.message}`); }
 });
+$('#diagnosticsPanel').addEventListener('toggle', () => updateDiagnostics());
+$('#copyDiagnostics').addEventListener('click', async () => {
+  const report = JSON.stringify(updateDiagnostics(), null, 2);
+  try {
+    await navigator.clipboard.writeText(report);
+    toast('Diagnose gekopieerd. QR-inhoud staat er niet in.');
+  } catch {
+    const field = document.createElement('textarea');
+    field.value = report; field.setAttribute('readonly', ''); field.style.position = 'fixed'; field.style.opacity = '0';
+    document.body.append(field); field.select();
+    const copied = document.execCommand('copy'); field.remove();
+    toast(copied ? 'Diagnose gekopieerd. QR-inhoud staat er niet in.' : 'Kopiëren niet gelukt; selecteer de diagnosetekst handmatig.');
+  }
+});
 
 document.addEventListener('visibilitychange', async () => {
   if (document.hidden) {
     ++switchToken;
     await stopActive();
     setCameraStatus('Gepauzeerd op achtergrond', 'off');
+    logDiagnostic('page-hidden');
   } else {
     selectScanner(activeId, { restart: true });
   }
@@ -272,4 +340,6 @@ buildNav();
 renderHistory();
 updateMetrics();
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('./sw.js').catch(() => {});
+updateDiagnostics();
+window.setInterval(() => { if ($('#diagnosticsPanel')?.open) updateDiagnostics(); }, 1200);
 selectScanner(activeId);

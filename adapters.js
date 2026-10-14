@@ -6,6 +6,7 @@ const CAMERA_CONSTRAINTS = {
     height: { min: 720, ideal: 1080 },
   },
 };
+const CAMERA_CHOICE = { facingMode: 'environment' };
 
 class Adapter {
   constructor({ video, reader, fps, onScan, onError, onMeasurement }) {
@@ -56,6 +57,14 @@ class Adapter {
   getTrack() {
     const stream = this.stream || this.video.srcObject || this.reader?.querySelector('video')?.srcObject;
     return stream?.getVideoTracks?.()[0] || null;
+  }
+
+  async hasTorch() { return Boolean(this.getTrack()?.getCapabilities?.().torch); }
+
+  async setTorch(enabled) {
+    const track = this.getTrack();
+    if (!track || !track.getCapabilities?.().torch) throw new Error('Deze camera biedt geen bediening voor de zaklamp.');
+    await track.applyConstraints({ advanced: [{ torch: enabled }] });
   }
 
   async stop() {
@@ -125,8 +134,8 @@ class Html5Adapter extends Adapter {
     if (!window.Html5Qrcode) throw new Error('html5-qrcode kon niet geladen worden. Controleer je internetverbinding en herlaad de pagina.');
     this.instance = new window.Html5Qrcode('reader', { verbose: false, formatsToSupport: [window.Html5QrcodeSupportedFormats.QR_CODE] });
     await this.instance.start(
-      CAMERA_CONSTRAINTS.video,
-      { fps: this.fps, qrbox: (width, height) => { const size = Math.min(width, height) * 0.72; return { width: size, height: size }; }, aspectRatio: 1 },
+      CAMERA_CHOICE,
+      { fps: this.fps, qrbox: (width, height) => { const size = Math.min(width, height) * 0.72; return { width: size, height: size }; }, videoConstraints: CAMERA_CONSTRAINTS.video },
       (value) => this.emit(value),
       () => {},
     );
@@ -152,19 +161,15 @@ class ZxingAdapter extends Adapter {
     this.stopped = false;
     const { BrowserQRCodeReader } = await import('https://esm.sh/@zxing/browser@0.2.1');
     if (this.stopped) return;
-    this.readerInstance = new BrowserQRCodeReader({ delayBetweenScanAttempts: Math.round(1000 / this.fps) });
+    this.readerInstance = new BrowserQRCodeReader(undefined, { delayBetweenScanAttempts: Math.round(1000 / this.fps) });
     const onDecode = (result, error) => {
       if (result) this.emit(result.getText());
       else if (error && error.name !== 'NotFoundException' && error.name !== 'ChecksumException' && error.name !== 'FormatException') this.fail(error);
     };
-    let controls;
-    try { controls = await this.readerInstance.decodeFromConstraints(CAMERA_CONSTRAINTS, this.video, onDecode); }
-    catch (error) {
-      if (error.name !== 'OverconstrainedError' && error.name !== 'ConstraintNotSatisfiedError') throw error;
-      controls = await this.readerInstance.decodeFromConstraints({ audio: false, video: { facingMode: { ideal: 'environment' } } }, this.video, onDecode);
-    }
+    await this.openCamera();
+    if (this.stopped) return;
+    const controls = await this.readerInstance.decodeFromVideoElement(this.video, onDecode);
     this.controls = controls;
-    this.stream = this.video.srcObject;
     if (this.stopped) {
       this.controls.stop();
       this.controls = null;
@@ -176,6 +181,11 @@ class ZxingAdapter extends Adapter {
     this.controls?.stop();
     this.controls = null;
     await super.stop();
+  }
+  async hasTorch() { return Boolean(this.controls?.switchTorch || await super.hasTorch()); }
+  async setTorch(enabled) {
+    if (this.controls?.switchTorch) return this.controls.switchTorch(enabled);
+    return super.setTorch(enabled);
   }
   async destroy() { await this.stop(); this.readerInstance = null; }
 }
@@ -205,6 +215,11 @@ class NimiqAdapter extends Adapter {
     this.stopped = true;
     this.scanner?.stop();
     await super.stop();
+  }
+  async hasTorch() { return Boolean(await this.scanner?.hasFlash?.() || await super.hasTorch()); }
+  async setTorch(enabled) {
+    if (await this.scanner?.hasFlash?.()) return enabled ? this.scanner.turnFlashOn() : this.scanner.turnFlashOff();
+    return super.setTorch(enabled);
   }
   async destroy() { await this.stop(); this.scanner?.destroy(); this.scanner = null; }
 }

@@ -66,3 +66,7 @@ De FPS-instelling begrenst de decodepogingen waar de adapter dat ondersteunt; de
 ## Gegevens en export
 
 De scanhistoriek is alleen beschikbaar zolang deze pagina geopend blijft. CSV exporteert de gescande tekst, tijd, bibliotheek en waar meetbaar de gemiddelde frameverwerkingstijd tot dat moment. Wees voorzichtig met codes die persoonlijke gegevens bevatten; exportbestanden worden door de browser aangemaakt.
+
+## Probleem melden
+
+Open **Camera-diagnostiek** onder de camera-instellingen en kies **Kopieer diagnose**. Het rapport bevat appversie, browser, geselecteerde scanner, video-afmetingen, cameratrackmogelijkheden en recente foutmeldingen. Het neemt geen gescande QR-inhoud op. Plak dat rapport bij een probleemmelding. Na een update kan het nodig zijn de pagina te herladen; de diagnostiek toont appversie `2026.10.14.2`.
